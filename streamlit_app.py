@@ -12,7 +12,6 @@ import torchvision.transforms as transforms
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
-from urllib.parse import urlparse, parse_qs
 
 # ✅ Initialize directories
 features_file = 'image_features.pkl'
@@ -65,20 +64,16 @@ if "code" in query_params and not st.session_state.get("authenticated", False):
     authorization_code = query_params["code"][0]
     try:
         flow.fetch_token(code=authorization_code)
-    credentials = flow.credentials
-    st.session_state["credentials"] = credentials.to_json()
-    st.session_state["authenticated"] = True
-    st.success("✅ Successfully authenticated!")
-except Exception as e:
-st.error(f"Authentication failed: {str(e)}. Please try logging in again.")
-if st.sidebar.button("Retry Login"):
-    auth_url, _ = flow.authorization_url(prompt='consent')
-    st.sidebar.markdown(f'<a href="{auth_url}" target="_blank">Click here to re-authenticate</a>',
-                        unsafe_allow_html=True)
-credentials = flow.credentials
-st.session_state["credentials"] = credentials.to_json()
-st.session_state["authenticated"] = True
-st.success("✅ Successfully authenticated!")
+        credentials = flow.credentials
+        st.session_state["credentials"] = credentials.to_json()
+        st.session_state["authenticated"] = True
+        st.success("✅ Successfully authenticated!")
+    except Exception as e:
+        st.error(f"Authentication failed: {str(e)}. Please try logging in again.")
+        if st.sidebar.button("Retry Login"):
+            auth_url, _ = flow.authorization_url(prompt='consent')
+            st.sidebar.markdown(f'<a href="{auth_url}" target="_blank">Click here to re-authenticate</a>',
+                                unsafe_allow_html=True)
 
 if not st.session_state.get("authenticated", False):
     if st.sidebar.button("Login to Google Drive"):
