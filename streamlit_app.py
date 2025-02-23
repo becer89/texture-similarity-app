@@ -84,11 +84,12 @@ if uploaded_query is not None:
         similarities[filename] = similarity
 
     # Sort by similarity score (highest first)
-    similar_images = sorted(similarities.items(), key=lambda x: x[1], reverse=True)[:5]
+    similar_images = sorted(similarities.items(), key=lambda x: x[1], reverse=True)[:4]
 
-    st.image(query_img_path, caption="Query Image", use_column_width=True)
-    st.subheader("Top 5 Similar Textures")
-    for filename, similarity in similar_images:
+    st.image(query_img_path, caption="Query Image", use_container_width=True)
+    st.subheader("Top 4 Similar Textures")
+    cols = st.columns(4)  # Display 4 images in a single row
+    for i, (filename, similarity) in enumerate(similar_images):
         img_path = os.path.join(folder_path, filename)
         with Image.open(img_path) as img:
-            st.image(img.copy(), caption=f"{filename} - Similarity: {similarity:.2f}", use_column_width=True)
+            cols[i].image(img.copy(), caption=f"{filename} - Similarity: {similarity:.2f}", use_container_width=True)
