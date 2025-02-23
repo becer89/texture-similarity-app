@@ -43,22 +43,16 @@ else:
     last_update = "Never"
 
 # ✅ Streamlit UI
-st.title("🖼️ Texture Similarity Search App")
+st.title("🖼️ Local Texture Similarity Search App (Private)")
 st.markdown(f"**Last Database Update:** {last_update}")
 
-# ✅ Sidebar for database update
-st.sidebar.header("Update Database")
-uploaded_images = st.sidebar.file_uploader("Upload new images to update the database", type=["png", "jpg", "jpeg"],
-                                           accept_multiple_files=True)
+# ✅ Update database from local folder
+st.sidebar.header("Update Local Database")
 if st.sidebar.button("Update Database"):
     updated = False
-    for uploaded_file in uploaded_images:
-        img_name = uploaded_file.name
-        img_path = os.path.join(folder_path, img_name)
-        with open(img_path, 'wb') as f:
-            f.write(uploaded_file.read())
-
-        if img_name not in image_features:
+    for img_name in os.listdir(folder_path):
+        if img_name.lower().endswith(('.png', '.jpg', '.jpeg')) and img_name not in image_features:
+            img_path = os.path.join(folder_path, img_name)
             features = extract_features(img_path)
             image_features[img_name] = features
             updated = True
@@ -71,7 +65,7 @@ if st.sidebar.button("Update Database"):
             f.write(last_update)
         st.sidebar.success(f"Database updated successfully. Last update: {last_update}")
     else:
-        st.sidebar.info("No new images to update.")
+        st.sidebar.info("No new images found to update.")
 
 # ✅ Image comparison
 st.header("Find Similar Textures")
@@ -95,5 +89,6 @@ if uploaded_query is not None:
     st.image(query_img_path, caption="Query Image", use_column_width=True)
     st.subheader("Top 5 Similar Textures")
     for filename, similarity in similar_images:
-        img = Image.open(os.path.join(folder_path, filename))
-        st.image(img, caption=f"{filename} - Similarity: {similarity:.2f}", use_column_width=True)
+        img_path = os.path.join(folder_path, filename)
+        with Image.open(img_path) as img:
+            st.image(img.copy(), caption=f"{filename} - Similarity: {similarity:.2f}", use_column_width=True)
