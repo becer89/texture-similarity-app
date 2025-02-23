@@ -4,12 +4,12 @@ import datetime
 import numpy as np
 import streamlit as st
 from PIL import Image
+from io import BytesIO
+import requests
 from sklearn.metrics.pairwise import cosine_similarity
 import tensorflow as tf
 from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
 from tensorflow.keras.preprocessing import image
-from pydrive2.auth import GoogleAuth
-from pydrive2.drive import GoogleDrive
 
 # ✅ Google Drive Folder ID
 FOLDER_ID = '1vRb-LrIrEtcxDsV_QllDeCnp9YqZDQ-D'
@@ -18,23 +18,14 @@ FOLDER_ID = '1vRb-LrIrEtcxDsV_QllDeCnp9YqZDQ-D'
 features_file = 'image_features.pkl'
 update_info_file = 'last_update.txt'
 
-
-# ✅ Authenticate Google Drive
-def authenticate_drive():
-    gauth = GoogleAuth()
-    gauth.LocalWebserverAuth()  # Opens a browser for Google login
-    drive = GoogleDrive(gauth)
-    return drive
-
-
 # ✅ Load ResNet50 model
 model = ResNet50(weights='imagenet', include_top=False, pooling='avg')
 
 
-# ✅ Function to extract features from an image
-def extract_features(img_path):
-    img = image.load_img(img_path, target_size=(224, 224))
-    img_array = image.img_to_array(img)
+# ✅ Function to extract features from an image in memory
+def extract_features_from_bytes(img_bytes):
+    img = Image.open(BytesIO(img_bytes)).convert('RGB').resize((224, 224))
+    img_array = np.array(img)
     img_array = np.expand_dims(img_array, axis=0)
     img_array = preprocess_input(img_array)
     features = model.predict(img_array, verbose=0)
@@ -55,39 +46,43 @@ else:
     last_update = "Never"
 
 # ✅ Streamlit UI
-st.title("🖼️ Google Drive Texture Similarity Search App")
+st.title("🖼️ Stream Google Drive Texture Similarity Search App")
 st.markdown(f"**Last Database Update:** {last_update}")
 
-# ✅ Authenticate Google Drive
-st.sidebar.header("Google Drive Authentication")
-if st.sidebar.button("Login to Google Drive"):
-    drive = authenticate_drive()
-    st.sidebar.success("Successfully authenticated with Google Drive!")
-else:
-    st.sidebar.warning("Please authenticate to access Google Drive.")
-    st.stop()
+
+# ✅ Retrieve file links from Google Drive API
+@st.cache_data(show_spinner=False)
+def get_google_drive_file_links(folder_id):
+    api_url = f"https://www.googleapis.com/drive/v3/files?q='{folder_id}'+in+parents&key=AIzaSyDxxxxxxx&fields=files(id,name,mimeType)"
+    response = requests.get(api_url)
+    files = response.json().get('files', [])
+    file_links = {file['name']: f"https://drive.google.com/uc?export=download&id={file['id']}" for file in files if
+                  file['mimeType'].startswith('image/')}
+    return file_links
 
 
-# ✅ Download images from Google Drive folder
-def download_images_from_drive(folder_id, drive):
-    file_list = drive.ListFile({'q': f"'{folder_id}' in parents and trashed=false"}).GetList()
-    downloaded_files = []
-    for file in file_list:
-        img_name = file['title']
-        img_path = os.path.join('temp_images', img_name)
+# ✅ Download images on-the-fly from Google Drive
+def process_images_from_drive():
+    file_links = get_google_drive_file_links(FOLDER_ID)
+    new_files = []
+    for img_name, img_url in file_links.items():
         if img_name not in image_features:
-            file.GetContentFile(img_path)
-            features = extract_features(img_path)
-            image_features[img_name] = features
-            downloaded_files.append(img_name)
-    if downloaded_files:
+            try:
+                response = requests.get(img_url)
+                if response.status_code == 200:
+                    features = extract_features_from_bytes(response.content)
+                    image_features[img_name] = features
+                    new_files.append(img_name)
+            except Exception as e:
+                st.sidebar.error(f"Error processing {img_name}: {str(e)}")
+    if new_files:
         with open(features_file, 'wb') as f:
             pickle.dump(image_features, f)
         global last_update
         last_update = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with open(update_info_file, 'w') as f:
             f.write(last_update)
-        st.sidebar.success(f"Database updated successfully with {len(downloaded_files)} new images.")
+        st.sidebar.success(f"Database updated successfully with {len(new_files)} new images.")
     else:
         st.sidebar.info("No new images found to update.")
 
@@ -95,8 +90,7 @@ def download_images_from_drive(folder_id, drive):
 # ✅ Update database from Google Drive
 st.sidebar.header("Update Google Drive Database")
 if st.sidebar.button("Update Database"):
-    os.makedirs('temp_images', exist_ok=True)
-    download_images_from_drive(FOLDER_ID, drive)
+    process_images_from_drive()
 
 # ✅ Image comparison
 st.header("Find Similar Textures")
@@ -107,7 +101,10 @@ if uploaded_query is not None:
     with open(query_img_path, 'wb') as f:
         f.write(uploaded_query.read())
 
-    comparison_features = extract_features(query_img_path)
+    with open(query_img_path, 'rb') as f:
+        img_bytes = f.read()
+
+    comparison_features = extract_features_from_bytes(img_bytes)
     similarities = {}
 
     for filename, features in image_features.items():
@@ -120,7 +117,12 @@ if uploaded_query is not None:
     st.image(query_img_path, caption="Query Image", use_container_width=True)
     st.subheader("Top 4 Similar Textures")
     cols = st.columns(4)  # Display 4 images in a single row
+
+    file_links = get_google_drive_file_links(FOLDER_ID)
     for i, (filename, similarity) in enumerate(similar_images):
-        img_path = os.path.join('temp_images', filename)
-        with Image.open(img_path) as img:
-            cols[i].image(img.copy(), caption=f"{filename} - Similarity: {similarity:.2f}", use_container_width=True)
+        img_url = file_links.get(filename, None)
+        if img_url:
+            response = requests.get(img_url)
+            if response.status_code == 200:
+                img = Image.open(BytesIO(response.content))
+                cols[i].image(img, caption=f"{filename} - Similarity: {similarity:.2f}", use_container_width=True)
