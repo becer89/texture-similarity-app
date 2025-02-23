@@ -8,7 +8,7 @@ from io import BytesIO
 import requests
 from sklearn.metrics.pairwise import cosine_similarity
 import tensorflow as tf
-from tensorflow.keras.applications import MobileNetV2, preprocess_input
+from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2, preprocess_input
 from tensorflow.keras.preprocessing import image
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
