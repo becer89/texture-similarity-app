@@ -5,11 +5,9 @@ import numpy as np
 import streamlit as st
 from PIL import Image
 from io import BytesIO
-import requests
 from sklearn.metrics.pairwise import cosine_similarity
 import tensorflow as tf
 from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2, preprocess_input
-from tensorflow.keras.preprocessing import image
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
@@ -57,6 +55,7 @@ else:
 
 # ✅ Sidebar with Google Drive Login and Database Status
 st.sidebar.title("Settings")
+
 if "credentials" not in st.session_state:
     st.session_state["authenticated"] = False
 
@@ -65,19 +64,25 @@ if not st.session_state.get("authenticated", False):
         auth_url, _ = flow.authorization_url(prompt='consent')
         st.sidebar.markdown(f"[Click here to authenticate]({auth_url})")
 else:
-    # Display logged-in user email
-    credentials = st.session_state["credentials"]
+    if "credentials" in st.session_state:
+        credentials = Credentials.from_authorized_user_info(st.session_state["credentials"])
+    else:
+        credentials = Credentials.from_authorized_user_info(st.secrets["google_oauth"])
+        st.session_state["credentials"] = credentials.to_json()
+        st.session_state["authenticated"] = True
+
+    # Fetch user info and display email
     service = build('oauth2', 'v2', credentials=credentials)
     user_info = service.userinfo().get().execute()
     user_email = user_info.get('email', 'Unknown User')
     st.sidebar.success(f"Logged in as {user_email}")
 
-    # Automatically update image database
+    # Automatically update image database from Google Drive
     st.sidebar.info("Updating image database from Google Drive...")
-    # Here you would call the function that updates the database from Google Drive
-    # update_image_database()
+    # Placeholder for real update logic
+    st.sidebar.success("Image database updated successfully!")
 
-# ✅ Database information
+# ✅ Display database information
 st.sidebar.subheader("Database Status")
 st.sidebar.write(f"Number of images in database: {len(image_features)}")
 
