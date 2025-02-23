@@ -48,10 +48,13 @@ st.markdown(f"**Last Database Update:** {last_update}")
 
 # ✅ Update database from local folder
 st.sidebar.header("Update Local Database")
+num_files_in_db = len(image_features)
+st.sidebar.markdown(f"**Number of images in database:** {num_files_in_db}")
 if st.sidebar.button("Update Database"):
     updated = False
+    current_files = set(image_features.keys())
     for img_name in os.listdir(folder_path):
-        if img_name.lower().endswith(('.png', '.jpg', '.jpeg')) and img_name not in image_features:
+        if img_name.lower().endswith(('.png', '.jpg', '.jpeg')) and img_name not in current_files:
             img_path = os.path.join(folder_path, img_name)
             features = extract_features(img_path)
             image_features[img_name] = features
