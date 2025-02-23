@@ -37,7 +37,8 @@ client_config = {
 redirect_url = "https://texture-similarity-app.streamlit.app/"
 flow = Flow.from_client_config(
     client_config,
-    scopes=["https://www.googleapis.com/auth/drive.readonly"],
+    scopes=["https://www.googleapis.com/auth/drive.readonly", "https://www.googleapis.com/auth/userinfo.email",
+            "openid"],
     redirect_uri=redirect_url
 )
 
@@ -56,15 +57,25 @@ else:
 
 # ✅ Sidebar with Google Drive Login and Database Status
 st.sidebar.title("Settings")
-if "authenticated" not in st.session_state:
+if "credentials" not in st.session_state:
     st.session_state["authenticated"] = False
 
-if not st.session_state["authenticated"]:
+if not st.session_state.get("authenticated", False):
     if st.sidebar.button("Login to Google Drive"):
         auth_url, _ = flow.authorization_url(prompt='consent')
         st.sidebar.markdown(f"[Click here to authenticate]({auth_url})")
 else:
-    st.sidebar.success("Logged in to Google Drive")
+    # Display logged-in user email
+    credentials = st.session_state["credentials"]
+    service = build('oauth2', 'v2', credentials=credentials)
+    user_info = service.userinfo().get().execute()
+    user_email = user_info.get('email', 'Unknown User')
+    st.sidebar.success(f"Logged in as {user_email}")
+
+    # Automatically update image database
+    st.sidebar.info("Updating image database from Google Drive...")
+    # Here you would call the function that updates the database from Google Drive
+    # update_image_database()
 
 # ✅ Database information
 st.sidebar.subheader("Database Status")
