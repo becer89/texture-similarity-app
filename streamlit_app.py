@@ -46,8 +46,10 @@ else:
 st.title("🖼️ Local Texture Similarity Search App (Private)")
 st.markdown(f"**Last Database Update:** {last_update}")
 
-# ✅ Update database from local folder with enhanced debug info
+# ✅ Display folder path and debug info
 st.sidebar.header("Update Local Database")
+st.sidebar.markdown(f"**Folder path:** {folder_path}")
+
 num_files_in_db = len(image_features)
 st.sidebar.markdown(f"**Number of images in database:** {num_files_in_db}")
 
@@ -56,10 +58,12 @@ if st.sidebar.button("Update Database"):
     current_files = set(f.lower() for f in image_features.keys())  # Case-insensitive matching
     new_files = []
 
-    # List all files in the directory and log them
+    # List all files in the directory and log them with their paths
     all_files = [f for f in os.listdir(folder_path) if
-                 os.path.isfile(os.path.join(folder_path, f)) and f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+                 os.path.isfile(os.path.join(folder_path, f)) and f.lower().endswith(
+                     ('.png', '.jpg', '.jpeg', '.bmp', '.gif'))]
     st.sidebar.write(f"Found {len(all_files)} images in folder.")
+    st.sidebar.write(f"Files found: {', '.join(all_files)}")
 
     for img_name in all_files:
         if img_name.lower() not in current_files:
