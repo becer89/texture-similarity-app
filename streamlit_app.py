@@ -64,15 +64,14 @@ if "credentials" not in st.session_state:
 if not st.session_state.get("authenticated", False):
     if st.sidebar.button("Login to Google Drive"):
         auth_url, _ = flow.authorization_url(prompt='consent')
-st.write(f"Generated Auth URL: {auth_url}")
-st.sidebar.markdown(f'<a href="{auth_url}" target="_blank">Click here to authenticate</a>', unsafe_allow_html=True)
+        st.sidebar.markdown(f'<a href="{auth_url}" target="_blank">Click here to authenticate</a>', unsafe_allow_html=True)
 else:
-if "credentials" in st.session_state:
-    credentials = Credentials.from_authorized_user_info(st.session_state["credentials"])
-else:
-    credentials = Credentials.from_authorized_user_info(st.secrets["google_oauth"])
-    st.session_state["credentials"] = credentials.to_json()
-    st.session_state["authenticated"] = True
+    if "credentials" in st.session_state:
+        credentials = Credentials.from_authorized_user_info(st.session_state["credentials"])
+    else:
+        credentials = Credentials.from_authorized_user_info(st.secrets["google_oauth"])
+        st.session_state["credentials"] = credentials.to_json()
+        st.session_state["authenticated"] = True
 
 # Fetch user info and display email
 service = build('oauth2', 'v2', credentials=credentials)
