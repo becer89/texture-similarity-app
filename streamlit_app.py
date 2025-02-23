@@ -6,8 +6,9 @@ import streamlit as st
 from PIL import Image
 from io import BytesIO
 from sklearn.metrics.pairwise import cosine_similarity
-import tensorflow as tf
-from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2, preprocess_input
+import torch
+import torchvision.models as models
+import torchvision.transforms as transforms
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
@@ -16,8 +17,9 @@ from google.oauth2.credentials import Credentials
 features_file = 'image_features.pkl'
 update_info_file = 'last_update.txt'
 
-# ✅ Load MobileNetV2 model
-model = MobileNetV2(weights='imagenet', include_top=False, pooling='avg')
+# ✅ Load ResNet50 model using PyTorch
+model = models.resnet50(pretrained=True)
+model.eval()
 
 # ✅ Google OAuth Authentication from Streamlit Secrets
 client_config = {
@@ -64,13 +66,13 @@ if not st.session_state.get("authenticated", False):
         auth_url, _ = flow.authorization_url(prompt='consent')
         st.sidebar.markdown(f'<a href="{auth_url}" target="_self">Click here to authenticate</a>',
                             unsafe_allow_html=True)
-st.write(f"Generated Auth URL: {auth_url}")
-if "credentials" in st.session_state:
-    credentials = Credentials.from_authorized_user_info(st.session_state["credentials"])
 else:
-    credentials = Credentials.from_authorized_user_info(st.secrets["google_oauth"])
-    st.session_state["credentials"] = credentials.to_json()
-    st.session_state["authenticated"] = True
+    if "credentials" in st.session_state:
+        credentials = Credentials.from_authorized_user_info(st.session_state["credentials"])
+    else:
+        credentials = Credentials.from_authorized_user_info(st.secrets["google_oauth"])
+        st.session_state["credentials"] = credentials.to_json()
+        st.session_state["authenticated"] = True
 
     # Fetch user info and display email
     service = build('oauth2', 'v2', credentials=credentials)
@@ -78,17 +80,29 @@ else:
     user_email = user_info.get('email', 'Unknown User')
     st.sidebar.success(f"Logged in as {user_email}")
 
-    # Automatically update image database from Google Drive
-    st.sidebar.info("Updating image database from Google Drive...")
-    # Placeholder for real update logic
-    st.sidebar.success("Image database updated successfully!")
-
 # ✅ Display database information
 st.sidebar.subheader("Database Status")
 st.sidebar.write(f"Number of images in database: {len(image_features)}")
 
+
+# ✅ Function to extract features using PyTorch ResNet50
+def extract_features_pytorch(img_bytes):
+    transform = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+    img = Image.open(BytesIO(img_bytes)).convert('RGB')
+    img_tensor = transform(img).unsqueeze(0)
+
+    with torch.no_grad():
+        features = model(img_tensor)
+    return features.flatten().numpy()
+
+
 # ✅ Streamlit UI
-st.title("🖼️ Google Drive Texture Similarity Search App")
+st.title("🖼️ Google Drive Texture Similarity Search App - PyTorch Edition")
 st.markdown(f"**Last Database Update:** {last_update}")
 
 # ✅ Image comparison section
@@ -103,17 +117,7 @@ if uploaded_query is not None:
     with open(query_img_path, 'rb') as f:
         img_bytes = f.read()
 
-
-    def extract_features(img_bytes):
-        img = Image.open(BytesIO(img_bytes)).convert('RGB').resize((224, 224))
-        img_array = np.array(img)
-        img_array = np.expand_dims(img_array, axis=0)
-        img_array = preprocess_input(img_array)
-        features = model.predict(img_array, verbose=0)
-        return features.flatten()
-
-
-    comparison_features = extract_features(img_bytes)
+    comparison_features = extract_features_pytorch(img_bytes)
     similarities = {}
 
     for filename, features in image_features.items():
