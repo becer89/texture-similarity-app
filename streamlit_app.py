@@ -10,6 +10,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 import tensorflow as tf
 from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
 from tensorflow.keras.preprocessing import image
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
 
 # ✅ Google Drive Folder ID
 FOLDER_ID = '1vRb-LrIrEtcxDsV_QllDeCnp9YqZDQ-D'
@@ -20,6 +22,15 @@ update_info_file = 'last_update.txt'
 
 # ✅ Load ResNet50 model
 model = ResNet50(weights='imagenet', include_top=False, pooling='avg')
+
+
+# ✅ Google Drive API Authentication
+def authenticate_google():
+    credentials = service_account.Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"], scopes=["https://www.googleapis.com/auth/drive.readonly"]
+    )
+    service = build('drive', 'v3', credentials=credentials)
+    return service
 
 
 # ✅ Function to extract features from an image in memory
@@ -46,18 +57,21 @@ else:
     last_update = "Never"
 
 # ✅ Streamlit UI
-st.title("🖼️ Stream Google Drive Texture Similarity Search App")
+st.title("🖼️ Google Drive Texture Similarity Search App")
 st.markdown(f"**Last Database Update:** {last_update}")
+
+# ✅ Authenticate Google Drive
+service = authenticate_google()
 
 
 # ✅ Retrieve file links from Google Drive API
-@st.cache_data(show_spinner=False)
 def get_google_drive_file_links(folder_id):
-    api_url = f"https://www.googleapis.com/drive/v3/files?q='{folder_id}'+in+parents&key=AIzaSyDxxxxxxx&fields=files(id,name,mimeType)"
-    response = requests.get(api_url)
-    files = response.json().get('files', [])
-    file_links = {file['name']: f"https://drive.google.com/uc?export=download&id={file['id']}" for file in files if
-                  file['mimeType'].startswith('image/')}
+    file_links = {}
+    results = service.files().list(q=f"'{folder_id}' in parents and mimeType contains 'image/' and trashed = false",
+                                   fields="files(id, name)").execute()
+    items = results.get('files', [])
+    for item in items:
+        file_links[item['name']] = f"https://drive.google.com/uc?export=download&id={item['id']}"
     return file_links
 
 
@@ -87,8 +101,12 @@ def process_images_from_drive():
         st.sidebar.info("No new images found to update.")
 
 
-# ✅ Update database from Google Drive
+# ✅ Compare number of files in database vs Google Drive folder
 st.sidebar.header("Update Google Drive Database")
+file_links = get_google_drive_file_links(FOLDER_ID)
+st.sidebar.markdown(f"**Files in Google Drive folder:** {len(file_links)}")
+st.sidebar.markdown(f"**Files in local database:** {len(image_features)}")
+
 if st.sidebar.button("Update Database"):
     process_images_from_drive()
 
@@ -118,7 +136,6 @@ if uploaded_query is not None:
     st.subheader("Top 4 Similar Textures")
     cols = st.columns(4)  # Display 4 images in a single row
 
-    file_links = get_google_drive_file_links(FOLDER_ID)
     for i, (filename, similarity) in enumerate(similar_images):
         img_url = file_links.get(filename, None)
         if img_url:
