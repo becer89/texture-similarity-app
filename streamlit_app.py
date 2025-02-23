@@ -70,12 +70,16 @@ else:
         credentials = Credentials.from_authorized_user_info(st.secrets["google_oauth"])
         st.session_state["credentials"] = credentials.to_json()
         st.session_state["authenticated"] = True
+        st.write("✅ Credentials stored in session state.")
 
     # Fetch user info and display email
     service = build('oauth2', 'v2', credentials=credentials)
     user_info = service.userinfo().get().execute()
     user_email = user_info.get('email', 'Unknown User')
     st.sidebar.success(f"Logged in as {user_email}")
+
+    # Debug: Display session state
+    st.write("🔍 Session State:", st.session_state)
 
 # ✅ Check if user is authenticated before allowing access to functionality
 if st.session_state.get("authenticated", False):
@@ -132,3 +136,4 @@ if st.session_state.get("authenticated", False):
             cols[i].image(filename, caption=f"{filename} - Similarity: {similarity:.2f}", use_container_width=True)
 else:
     st.sidebar.warning("Please log in to access Google Drive functionality.")
+    st.write("🔒 Authentication required to access functionality.")
