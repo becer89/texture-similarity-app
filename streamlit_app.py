@@ -60,7 +60,7 @@ else:
 st.sidebar.title("Settings")
 
 # ✅ Check for authorization code in the URL
-query_params = st.experimental_get_query_params()
+query_params = st.query_params
 if "code" in query_params and not st.session_state.get("authenticated", False):
     authorization_code = query_params["code"][0]
     flow.fetch_token(code=authorization_code)
@@ -82,7 +82,6 @@ else:
     user_info = service.userinfo().get().execute()
     user_email = user_info.get('email', 'Unknown User')
     st.sidebar.success(f"Logged in as {user_email}")
-    st.write("🔍 Session State:", st.session_state)
 
 # ✅ Check if user is authenticated before allowing access to functionality
 if st.session_state.get("authenticated", False):
