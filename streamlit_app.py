@@ -53,6 +53,22 @@ if os.path.exists(update_info_file):
 else:
     last_update = "Never"
 
+# ✅ Sidebar with Google Drive Login and Database Status
+st.sidebar.title("Settings")
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+
+if not st.session_state["authenticated"]:
+    if st.sidebar.button("Login to Google Drive"):
+        auth_url, _ = flow.authorization_url(prompt='consent')
+        st.sidebar.markdown(f"[Click here to authenticate]({auth_url})")
+else:
+    st.sidebar.success("Logged in to Google Drive")
+
+# ✅ Database information
+st.sidebar.subheader("Database Status")
+st.sidebar.write(f"Number of images in database: {len(image_features)}")
+
 # ✅ Streamlit UI
 st.title("🖼️ Google Drive Texture Similarity Search App")
 st.markdown(f"**Last Database Update:** {last_update}")
@@ -86,7 +102,6 @@ if uploaded_query is not None:
         similarity = cosine_similarity([comparison_features], [features])[0][0]
         similarities[filename] = similarity
 
-    # Sort by similarity score (highest first)
     similar_images = sorted(similarities.items(), key=lambda x: x[1], reverse=True)[:4]
 
     st.image(query_img_path, caption="Query Image", use_container_width=True)
