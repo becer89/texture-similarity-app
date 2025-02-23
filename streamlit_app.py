@@ -10,7 +10,7 @@ from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
 from tensorflow.keras.preprocessing import image
 
 # ✅ Initialize directories
-folder_path = './images_database/'
+folder_path = 'C:/images_database'
 os.makedirs(folder_path, exist_ok=True)
 features_file = './image_features.pkl'
 update_info_file = './last_update.txt'
@@ -46,20 +46,33 @@ else:
 st.title("🖼️ Local Texture Similarity Search App (Private)")
 st.markdown(f"**Last Database Update:** {last_update}")
 
-# ✅ Update database from local folder
+# ✅ Update database from local folder with debug info
 st.sidebar.header("Update Local Database")
 num_files_in_db = len(image_features)
 st.sidebar.markdown(f"**Number of images in database:** {num_files_in_db}")
+
 if st.sidebar.button("Update Database"):
     updated = False
     current_files = set(image_features.keys())
+    new_files = []
+
+    # Check all files in the folder
     for img_name in os.listdir(folder_path):
         if img_name.lower().endswith(('.png', '.jpg', '.jpeg')) and img_name not in current_files:
             img_path = os.path.join(folder_path, img_name)
-            features = extract_features(img_path)
-            image_features[img_name] = features
-            updated = True
+            try:
+                features = extract_features(img_path)
+                image_features[img_name] = features
+                new_files.append(img_name)
+                updated = True
+            except Exception as e:
+                st.sidebar.error(f"Error processing {img_name}: {str(e)}")
 
+    # Display debug information
+    if new_files:
+        st.sidebar.write(f"New files added: {', '.join(new_files)}")
+
+    # Save updated database
     if updated:
         with open(features_file, 'wb') as f:
             pickle.dump(image_features, f)
