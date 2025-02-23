@@ -12,33 +12,39 @@ from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
 from tensorflow.keras.preprocessing import image
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
-from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-
-# ✅ Google Drive Folder ID
-FOLDER_ID = '1vRb-LrIrEtcxDsV_QllDeCnp9YqZDQ-D'
 
 # ✅ Initialize directories
 features_file = 'image_features.pkl'
 update_info_file = 'last_update.txt'
 
 # ✅ Load ResNet50 model
-model = ResNet50(weights='imagenet', include_top=False, pooling='avg')
+weights_path = tf.keras.utils.get_file(
+    'resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5',
+    'https://storage.googleapis.com/tensorflow/keras-applications/resnet50/resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5',
+    cache_subdir='models',
+    cache_dir=os.path.expanduser('~')
+)
+model = ResNet50(weights=weights_path, include_top=False, pooling='avg')
 
-# ✅ Google OAuth Authentication
-CLIENT_SECRETS_FILE = "client_secrets.json"
-SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
+# ✅ Google OAuth Authentication from Streamlit Secrets
+client_config = {
+    "web": {
+        "client_id": st.secrets["google_oauth"]["client_id"],
+        "client_secret": st.secrets["google_oauth"]["client_secret"],
+        "redirect_uris": st.secrets["google_oauth"]["redirect_uris"],
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs"
+    }
+}
 
-
-# ✅ Function to extract features from an image in memory
-def extract_features_from_bytes(img_bytes):
-    img = Image.open(BytesIO(img_bytes)).convert('RGB').resize((224, 224))
-    img_array = np.array(img)
-    img_array = np.expand_dims(img_array, axis=0)
-    img_array = preprocess_input(img_array)
-    features = model.predict(img_array, verbose=0)
-    return features.flatten()
-
+# ✅ OAuth flow
+flow = Flow.from_client_config(
+    client_config,
+    scopes=["https://www.googleapis.com/auth/drive.readonly"],
+    redirect_uri=st.secrets["google_oauth"]["redirect_uris"][0]
+)
 
 # ✅ Load existing features and last update date
 if os.path.exists(features_file):
@@ -57,64 +63,7 @@ else:
 st.title("🖼️ Google Drive Texture Similarity Search App")
 st.markdown(f"**Last Database Update:** {last_update}")
 
-# ✅ User Login with Google OAuth
-if "credentials" not in st.session_state:
-    flow = Flow.from_client_secrets_file(
-        CLIENT_SECRETS_FILE, scopes=SCOPES, redirect_uri='http://localhost:8501/')
-    auth_url, _ = flow.authorization_url(prompt='consent')
-    st.markdown(f"[Login with Google]({auth_url})")
-    st.stop()
-
-
-# ✅ Retrieve file links from Google Drive API
-def get_google_drive_file_links(folder_id, credentials):
-    service = build('drive', 'v3', credentials=credentials)
-    file_links = {}
-    results = service.files().list(q=f"'{folder_id}' in parents and mimeType contains 'image/' and trashed = false",
-                                   fields="files(id, name)").execute()
-    items = results.get('files', [])
-    for item in items:
-        file_links[item['name']] = f"https://drive.google.com/uc?export=download&id={item['id']}"
-    return file_links
-
-
-# ✅ Download images on-the-fly from Google Drive
-def process_images_from_drive(credentials):
-    file_links = get_google_drive_file_links(FOLDER_ID, credentials)
-    new_files = []
-    for img_name, img_url in file_links.items():
-        if img_name not in image_features:
-            try:
-                response = requests.get(img_url)
-                if response.status_code == 200:
-                    features = extract_features_from_bytes(response.content)
-                    image_features[img_name] = features
-                    new_files.append(img_name)
-            except Exception as e:
-                st.sidebar.error(f"Error processing {img_name}: {str(e)}")
-    if new_files:
-        with open(features_file, 'wb') as f:
-            pickle.dump(image_features, f)
-        global last_update
-        last_update = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        with open(update_info_file, 'w') as f:
-            f.write(last_update)
-        st.sidebar.success(f"Database updated successfully with {len(new_files)} new images.")
-    else:
-        st.sidebar.info("No new images found to update.")
-
-
-# ✅ Compare number of files in database vs Google Drive folder
-st.sidebar.header("Update Google Drive Database")
-credentials = Credentials.from_authorized_user_info(st.session_state["credentials"])
-file_links = get_google_drive_file_links(FOLDER_ID, credentials)
-st.sidebar.markdown(f"**Files in Google Drive folder:** {len(file_links)}")
-st.sidebar.markdown(f"**Files in local database:** {len(image_features)}")
-
-if st.sidebar.button("Update Database"):
-    process_images_from_drive(credentials)
-
-# ✅ Image comparison
+# ✅ Image comparison section
 st.header("Find Similar Textures")
 uploaded_query = st.file_uploader("Upload an image to compare", type=["png", "jpg", "jpeg"])
 
@@ -126,7 +75,17 @@ if uploaded_query is not None:
     with open(query_img_path, 'rb') as f:
         img_bytes = f.read()
 
-    comparison_features = extract_features_from_bytes(img_bytes)
+
+    def extract_features(img_bytes):
+        img = Image.open(BytesIO(img_bytes)).convert('RGB').resize((224, 224))
+        img_array = np.array(img)
+        img_array = np.expand_dims(img_array, axis=0)
+        img_array = preprocess_input(img_array)
+        features = model.predict(img_array, verbose=0)
+        return features.flatten()
+
+
+    comparison_features = extract_features(img_bytes)
     similarities = {}
 
     for filename, features in image_features.items():
@@ -141,9 +100,4 @@ if uploaded_query is not None:
     cols = st.columns(4)  # Display 4 images in a single row
 
     for i, (filename, similarity) in enumerate(similar_images):
-        img_url = file_links.get(filename, None)
-        if img_url:
-            response = requests.get(img_url)
-            if response.status_code == 200:
-                img = Image.open(BytesIO(response.content))
-                cols[i].image(img, caption=f"{filename} - Similarity: {similarity:.2f}", use_container_width=True)
+        cols[i].image(filename, caption=f"{filename} - Similarity: {similarity:.2f}", use_container_width=True)
