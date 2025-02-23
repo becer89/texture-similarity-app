@@ -57,8 +57,10 @@ if st.sidebar.button("Update Database"):
     new_files = []
 
     # Check all files in the folder
-    for img_name in os.listdir(folder_path):
-        if img_name.lower().endswith(('.png', '.jpg', '.jpeg')) and img_name not in current_files:
+    all_files = [f for f in os.listdir(folder_path) if
+                 os.path.isfile(os.path.join(folder_path, f)) and f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+    for img_name in all_files:
+        if img_name not in current_files:
             img_path = os.path.join(folder_path, img_name)
             try:
                 features = extract_features(img_path)
@@ -71,6 +73,8 @@ if st.sidebar.button("Update Database"):
     # Display debug information
     if new_files:
         st.sidebar.write(f"New files added: {', '.join(new_files)}")
+    else:
+        st.sidebar.info("No new images found to update.")
 
     # Save updated database
     if updated:
@@ -80,8 +84,6 @@ if st.sidebar.button("Update Database"):
         with open(update_info_file, 'w') as f:
             f.write(last_update)
         st.sidebar.success(f"Database updated successfully. Last update: {last_update}")
-    else:
-        st.sidebar.info("No new images found to update.")
 
 # ✅ Image comparison
 st.header("Find Similar Textures")
