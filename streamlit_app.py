@@ -58,13 +58,11 @@ else:
 # ✅ Sidebar with Google Drive Login and Database Status
 st.sidebar.title("Settings")
 
-if "credentials" not in st.session_state:
-    st.session_state["authenticated"] = False
-
 if not st.session_state.get("authenticated", False):
     if st.sidebar.button("Login to Google Drive"):
         auth_url, _ = flow.authorization_url(prompt='consent')
-        st.sidebar.markdown(f'<a href="{auth_url}" target="_blank">Click here to authenticate</a>', unsafe_allow_html=True)
+        st.sidebar.markdown(f'<a href="{auth_url}" target="_blank">Click here to authenticate</a>',
+                            unsafe_allow_html=True)
 else:
     if "credentials" in st.session_state:
         credentials = Credentials.from_authorized_user_info(st.session_state["credentials"])
@@ -73,61 +71,64 @@ else:
         st.session_state["credentials"] = credentials.to_json()
         st.session_state["authenticated"] = True
 
-# Fetch user info and display email
-service = build('oauth2', 'v2', credentials=credentials)
-user_info = service.userinfo().get().execute()
-user_email = user_info.get('email', 'Unknown User')
-st.sidebar.success(f"Logged in as {user_email}")
+    # Fetch user info and display email
+    service = build('oauth2', 'v2', credentials=credentials)
+    user_info = service.userinfo().get().execute()
+    user_email = user_info.get('email', 'Unknown User')
+    st.sidebar.success(f"Logged in as {user_email}")
 
-# ✅ Display database information
-st.sidebar.subheader("Database Status")
-st.sidebar.write(f"Number of images in database: {len(image_features)}")
-
-
-# ✅ Function to extract features using PyTorch ResNet50
-def extract_features_pytorch(img_bytes):
-    transform = transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
-    img = Image.open(BytesIO(img_bytes)).convert('RGB')
-    img_tensor = transform(img).unsqueeze(0)
-
-    with torch.no_grad():
-        features = model(img_tensor)
-    return features.flatten().numpy()
+# ✅ Check if user is authenticated before allowing access to functionality
+if st.session_state.get("authenticated", False):
+    st.sidebar.subheader("Database Status")
+    st.sidebar.write(f"Number of images in database: {len(image_features)}")
 
 
-# ✅ Streamlit UI
-st.title("🖼️ Google Drive Texture Similarity Search App - PyTorch Edition")
-st.markdown(f"**Last Database Update:** {last_update}")
+    # ✅ Function to extract features using PyTorch ResNet50
+    def extract_features_pytorch(img_bytes):
+        transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+        img = Image.open(BytesIO(img_bytes)).convert('RGB')
+        img_tensor = transform(img).unsqueeze(0)
 
-# ✅ Image comparison section
-st.header("Find Similar Textures")
-uploaded_query = st.file_uploader("Upload an image to compare", type=["png", "jpg", "jpeg"])
+        with torch.no_grad():
+            features = model(img_tensor)
+        return features.flatten().numpy()
 
-if uploaded_query is not None:
-    query_img_path = "./temp_query_image.png"
-    with open(query_img_path, 'wb') as f:
-        f.write(uploaded_query.read())
 
-    with open(query_img_path, 'rb') as f:
-        img_bytes = f.read()
+    # ✅ Streamlit UI
+    st.title("🖼️ Google Drive Texture Similarity Search App - PyTorch Edition")
+    st.markdown(f"**Last Database Update:** {last_update}")
 
-    comparison_features = extract_features_pytorch(img_bytes)
-    similarities = {}
+    # ✅ Image comparison section
+    st.header("Find Similar Textures")
+    uploaded_query = st.file_uploader("Upload an image to compare", type=["png", "jpg", "jpeg"])
 
-    for filename, features in image_features.items():
-        similarity = cosine_similarity([comparison_features], [features])[0][0]
-        similarities[filename] = similarity
+    if uploaded_query is not None:
+        query_img_path = "./temp_query_image.png"
+        with open(query_img_path, 'wb') as f:
+            f.write(uploaded_query.read())
 
-    similar_images = sorted(similarities.items(), key=lambda x: x[1], reverse=True)[:4]
+        with open(query_img_path, 'rb') as f:
+            img_bytes = f.read()
 
-    st.image(query_img_path, caption="Query Image", use_container_width=True)
-    st.subheader("Top 4 Similar Textures")
-    cols = st.columns(4)  # Display 4 images in a single row
+        comparison_features = extract_features_pytorch(img_bytes)
+        similarities = {}
 
-    for i, (filename, similarity) in enumerate(similar_images):
-        cols[i].image(filename, caption=f"{filename} - Similarity: {similarity:.2f}", use_container_width=True)
+        for filename, features in image_features.items():
+            similarity = cosine_similarity([comparison_features], [features])[0][0]
+            similarities[filename] = similarity
+
+        similar_images = sorted(similarities.items(), key=lambda x: x[1], reverse=True)[:4]
+
+        st.image(query_img_path, caption="Query Image", use_container_width=True)
+        st.subheader("Top 4 Similar Textures")
+        cols = st.columns(4)  # Display 4 images in a single row
+
+        for i, (filename, similarity) in enumerate(similar_images):
+            cols[i].image(filename, caption=f"{filename} - Similarity: {similarity:.2f}", use_container_width=True)
+else:
+    st.sidebar.warning("Please log in to access Google Drive functionality.")
