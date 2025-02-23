@@ -8,7 +8,7 @@ from io import BytesIO
 import requests
 from sklearn.metrics.pairwise import cosine_similarity
 import tensorflow as tf
-from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
+from tensorflow.keras.applications import MobileNetV2, preprocess_input
 from tensorflow.keras.preprocessing import image
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
@@ -18,14 +18,8 @@ from google.oauth2.credentials import Credentials
 features_file = 'image_features.pkl'
 update_info_file = 'last_update.txt'
 
-# ✅ Load ResNet50 model
-weights_path = tf.keras.utils.get_file(
-    'resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5',
-    'https://storage.googleapis.com/tensorflow/keras-applications/resnet50/resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5',
-    cache_subdir='models',
-    cache_dir=os.path.expanduser('~')
-)
-model = ResNet50(weights=weights_path, include_top=False, pooling='avg')
+# ✅ Load MobileNetV2 model
+model = MobileNetV2(weights='imagenet', include_top=False, pooling='avg')
 
 # ✅ Google OAuth Authentication from Streamlit Secrets
 client_config = {
