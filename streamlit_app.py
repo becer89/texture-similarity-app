@@ -8,12 +8,24 @@ from sklearn.metrics.pairwise import cosine_similarity
 import tensorflow as tf
 from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
 from tensorflow.keras.preprocessing import image
+from pydrive2.auth import GoogleAuth
+from pydrive2.drive import GoogleDrive
+
+# ✅ Google Drive Folder ID
+FOLDER_ID = '1vRb-LrIrEtcxDsV_QllDeCnp9YqZDQ-D'
 
 # ✅ Initialize directories
-folder_path = 'C:/images_database'
-os.makedirs(folder_path, exist_ok=True)
-features_file = './image_features.pkl'
-update_info_file = './last_update.txt'
+features_file = 'image_features.pkl'
+update_info_file = 'last_update.txt'
+
+
+# ✅ Authenticate Google Drive
+def authenticate_drive():
+    gauth = GoogleAuth()
+    gauth.LocalWebserverAuth()  # Opens a browser for Google login
+    drive = GoogleDrive(gauth)
+    return drive
+
 
 # ✅ Load ResNet50 model
 model = ResNet50(weights='imagenet', include_top=False, pooling='avg')
@@ -43,55 +55,48 @@ else:
     last_update = "Never"
 
 # ✅ Streamlit UI
-st.title("🖼️ Local Texture Similarity Search App (Private)")
+st.title("🖼️ Google Drive Texture Similarity Search App")
 st.markdown(f"**Last Database Update:** {last_update}")
 
-# ✅ Display folder path and debug info
-st.sidebar.header("Update Local Database")
-st.sidebar.markdown(f"**Folder path:** {folder_path}")
+# ✅ Authenticate Google Drive
+st.sidebar.header("Google Drive Authentication")
+if st.sidebar.button("Login to Google Drive"):
+    drive = authenticate_drive()
+    st.sidebar.success("Successfully authenticated with Google Drive!")
+else:
+    st.sidebar.warning("Please authenticate to access Google Drive.")
+    st.stop()
 
-num_files_in_db = len(image_features)
-st.sidebar.markdown(f"**Number of images in database:** {num_files_in_db}")
 
-# ✅ Count files in the folder
-all_files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f)) and f.lower().endswith(
-    ('.png', '.jpg', '.jpeg', '.bmp', '.gif'))]
-num_files_in_folder = len(all_files)
-st.sidebar.markdown(f"**Number of files in folder:** {num_files_in_folder}")
-
-if st.sidebar.button("Update Database"):
-    updated = False
-    current_files = set(f.lower() for f in image_features.keys())  # Case-insensitive matching
-    new_files = []
-
-    st.sidebar.write(f"Found {num_files_in_folder} images in folder.")
-    st.sidebar.write(f"Files found: {', '.join(all_files)}")
-
-    for img_name in all_files:
-        if img_name.lower() not in current_files:
-            img_path = os.path.join(folder_path, img_name)
-            try:
-                features = extract_features(img_path)
-                image_features[img_name] = features
-                new_files.append(img_name)
-                updated = True
-            except Exception as e:
-                st.sidebar.error(f"Error processing {img_name}: {str(e)}")
-
-    # Display debug information
-    if new_files:
-        st.sidebar.write(f"New files added: {', '.join(new_files)}")
-    else:
-        st.sidebar.info("No new images found to update.")
-
-    # Save updated database
-    if updated:
+# ✅ Download images from Google Drive folder
+def download_images_from_drive(folder_id, drive):
+    file_list = drive.ListFile({'q': f"'{folder_id}' in parents and trashed=false"}).GetList()
+    downloaded_files = []
+    for file in file_list:
+        img_name = file['title']
+        img_path = os.path.join('temp_images', img_name)
+        if img_name not in image_features:
+            file.GetContentFile(img_path)
+            features = extract_features(img_path)
+            image_features[img_name] = features
+            downloaded_files.append(img_name)
+    if downloaded_files:
         with open(features_file, 'wb') as f:
             pickle.dump(image_features, f)
+        global last_update
         last_update = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with open(update_info_file, 'w') as f:
             f.write(last_update)
-        st.sidebar.success(f"Database updated successfully. Last update: {last_update}")
+        st.sidebar.success(f"Database updated successfully with {len(downloaded_files)} new images.")
+    else:
+        st.sidebar.info("No new images found to update.")
+
+
+# ✅ Update database from Google Drive
+st.sidebar.header("Update Google Drive Database")
+if st.sidebar.button("Update Database"):
+    os.makedirs('temp_images', exist_ok=True)
+    download_images_from_drive(FOLDER_ID, drive)
 
 # ✅ Image comparison
 st.header("Find Similar Textures")
@@ -116,6 +121,6 @@ if uploaded_query is not None:
     st.subheader("Top 4 Similar Textures")
     cols = st.columns(4)  # Display 4 images in a single row
     for i, (filename, similarity) in enumerate(similar_images):
-        img_path = os.path.join(folder_path, filename)
+        img_path = os.path.join('temp_images', filename)
         with Image.open(img_path) as img:
             cols[i].image(img.copy(), caption=f"{filename} - Similarity: {similarity:.2f}", use_container_width=True)
