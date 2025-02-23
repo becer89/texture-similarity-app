@@ -10,8 +10,10 @@ from sklearn.metrics.pairwise import cosine_similarity
 import tensorflow as tf
 from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
 from tensorflow.keras.preprocessing import image
-from google.oauth2 import service_account
+from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
 
 # ✅ Google Drive Folder ID
 FOLDER_ID = '1vRb-LrIrEtcxDsV_QllDeCnp9YqZDQ-D'
@@ -23,14 +25,9 @@ update_info_file = 'last_update.txt'
 # ✅ Load ResNet50 model
 model = ResNet50(weights='imagenet', include_top=False, pooling='avg')
 
-
-# ✅ Google Drive API Authentication
-def authenticate_google():
-    credentials = service_account.Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"], scopes=["https://www.googleapis.com/auth/drive.readonly"]
-    )
-    service = build('drive', 'v3', credentials=credentials)
-    return service
+# ✅ Google OAuth Authentication
+CLIENT_SECRETS_FILE = "client_secrets.json"
+SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 
 
 # ✅ Function to extract features from an image in memory
@@ -60,12 +57,18 @@ else:
 st.title("🖼️ Google Drive Texture Similarity Search App")
 st.markdown(f"**Last Database Update:** {last_update}")
 
-# ✅ Authenticate Google Drive
-service = authenticate_google()
+# ✅ User Login with Google OAuth
+if "credentials" not in st.session_state:
+    flow = Flow.from_client_secrets_file(
+        CLIENT_SECRETS_FILE, scopes=SCOPES, redirect_uri='http://localhost:8501/')
+    auth_url, _ = flow.authorization_url(prompt='consent')
+    st.markdown(f"[Login with Google]({auth_url})")
+    st.stop()
 
 
 # ✅ Retrieve file links from Google Drive API
-def get_google_drive_file_links(folder_id):
+def get_google_drive_file_links(folder_id, credentials):
+    service = build('drive', 'v3', credentials=credentials)
     file_links = {}
     results = service.files().list(q=f"'{folder_id}' in parents and mimeType contains 'image/' and trashed = false",
                                    fields="files(id, name)").execute()
@@ -76,8 +79,8 @@ def get_google_drive_file_links(folder_id):
 
 
 # ✅ Download images on-the-fly from Google Drive
-def process_images_from_drive():
-    file_links = get_google_drive_file_links(FOLDER_ID)
+def process_images_from_drive(credentials):
+    file_links = get_google_drive_file_links(FOLDER_ID, credentials)
     new_files = []
     for img_name, img_url in file_links.items():
         if img_name not in image_features:
@@ -103,12 +106,13 @@ def process_images_from_drive():
 
 # ✅ Compare number of files in database vs Google Drive folder
 st.sidebar.header("Update Google Drive Database")
-file_links = get_google_drive_file_links(FOLDER_ID)
+credentials = Credentials.from_authorized_user_info(st.session_state["credentials"])
+file_links = get_google_drive_file_links(FOLDER_ID, credentials)
 st.sidebar.markdown(f"**Files in Google Drive folder:** {len(file_links)}")
 st.sidebar.markdown(f"**Files in local database:** {len(image_features)}")
 
 if st.sidebar.button("Update Database"):
-    process_images_from_drive()
+    process_images_from_drive(credentials)
 
 # ✅ Image comparison
 st.header("Find Similar Textures")
