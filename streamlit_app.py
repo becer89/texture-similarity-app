@@ -12,6 +12,7 @@ import torchvision.transforms as transforms
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
+from urllib.parse import urlparse, parse_qs
 
 # ✅ Initialize directories
 features_file = 'image_features.pkl'
@@ -58,27 +59,29 @@ else:
 # ✅ Sidebar with Google Drive Login and Database Status
 st.sidebar.title("Settings")
 
+# ✅ Check for authorization code in the URL
+query_params = st.experimental_get_query_params()
+if "code" in query_params and not st.session_state.get("authenticated", False):
+    authorization_code = query_params["code"][0]
+    flow.fetch_token(code=authorization_code)
+    credentials = flow.credentials
+    st.session_state["credentials"] = credentials.to_json()
+    st.session_state["authenticated"] = True
+    st.success("✅ Successfully authenticated!")
+
 if not st.session_state.get("authenticated", False):
     if st.sidebar.button("Login to Google Drive"):
         auth_url, _ = flow.authorization_url(prompt='consent')
         st.sidebar.markdown(f'<a href="{auth_url}" target="_blank">Click here to authenticate</a>',
                             unsafe_allow_html=True)
 else:
-    if "credentials" in st.session_state:
-        credentials = Credentials.from_authorized_user_info(st.session_state["credentials"])
-    else:
-        credentials = Credentials.from_authorized_user_info(st.secrets["google_oauth"])
-        st.session_state["credentials"] = credentials.to_json()
-        st.session_state["authenticated"] = True
-        st.write("✅ Credentials stored in session state.")
+    credentials = Credentials.from_authorized_user_info(eval(st.session_state["credentials"]))
 
     # Fetch user info and display email
     service = build('oauth2', 'v2', credentials=credentials)
     user_info = service.userinfo().get().execute()
     user_email = user_info.get('email', 'Unknown User')
     st.sidebar.success(f"Logged in as {user_email}")
-
-    # Debug: Display session state
     st.write("🔍 Session State:", st.session_state)
 
 # ✅ Check if user is authenticated before allowing access to functionality
