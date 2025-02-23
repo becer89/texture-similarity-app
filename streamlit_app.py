@@ -33,7 +33,7 @@ client_config = {
     }
 }
 
-# ✅ OAuth flow
+# ✅ OAuth flow with proper redirect URI
 redirect_url = "https://texture-similarity-app.streamlit.app/"
 flow = Flow.from_client_config(
     client_config,
