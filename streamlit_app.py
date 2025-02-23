@@ -65,7 +65,6 @@ if not st.session_state.get("authenticated", False):
         st.sidebar.markdown(f'<a href="{auth_url}" target="_self">Click here to authenticate</a>',
                             unsafe_allow_html=True)
 st.write(f"Generated Auth URL: {auth_url}")
-else:
 if "credentials" in st.session_state:
     credentials = Credentials.from_authorized_user_info(st.session_state["credentials"])
 else:
@@ -73,16 +72,16 @@ else:
     st.session_state["credentials"] = credentials.to_json()
     st.session_state["authenticated"] = True
 
-# Fetch user info and display email
-service = build('oauth2', 'v2', credentials=credentials)
-user_info = service.userinfo().get().execute()
-user_email = user_info.get('email', 'Unknown User')
-st.sidebar.success(f"Logged in as {user_email}")
+    # Fetch user info and display email
+    service = build('oauth2', 'v2', credentials=credentials)
+    user_info = service.userinfo().get().execute()
+    user_email = user_info.get('email', 'Unknown User')
+    st.sidebar.success(f"Logged in as {user_email}")
 
-# Automatically update image database from Google Drive
-st.sidebar.info("Updating image database from Google Drive...")
-# Placeholder for real update logic
-st.sidebar.success("Image database updated successfully!")
+    # Automatically update image database from Google Drive
+    st.sidebar.info("Updating image database from Google Drive...")
+    # Placeholder for real update logic
+    st.sidebar.success("Image database updated successfully!")
 
 # ✅ Display database information
 st.sidebar.subheader("Database Status")
