@@ -34,10 +34,11 @@ client_config = {
 }
 
 # ✅ OAuth flow
+redirect_url = "https://texture-similarity-app.streamlit.app/"
 flow = Flow.from_client_config(
     client_config,
     scopes=["https://www.googleapis.com/auth/drive.readonly"],
-    redirect_uri=st.secrets["google_oauth"]["redirect_uris"][0]
+    redirect_uri=redirect_url
 )
 
 # ✅ Load existing features and last update date
