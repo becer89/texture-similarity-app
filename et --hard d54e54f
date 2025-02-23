@@ -1,0 +1,16 @@
+[33m5f03a0d[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m Remove client_secrets.json from tracking and add to .gitignore
+[33m3bd39ae[m[33m ([m[1;32mfix-push-problem[m[33m, [m[1;32mfeature/fix-push-issue[m[33m)[m Add client_secrets.json for Google OAuth
+[33mf9c8e7f[m[33m ([m[1;31morigin/main[m[33m)[m Add Google OAuth login and file count comparison in sidebar
+[33m21f932e[m Add Google authentication and display file comparison in sidebar
+[33m382f98d[m Stream images directly from Google Drive and process in memory
+[33m873f461[m Integrate Google Drive authentication and update database logic
+[33m488e028[m Add folder file count display and improve update debug information
+[33m26ae2d1[m Add full folder path display and debug for file detection
+[33m71e8008[m Fix image count detection and improve update database debug info
+[33m907da77[m Fix database update detection and ensure proper reading of local files
+[33m654167e[m Update local folder path to C:/images_database and fix database update detection
+[33m2bde23e[m Fix database update issue and display number of files in the sidebar
+[33ma3e4e1c[m Update streamlit_app.py: Display 4 images in a single row and replace deprecated use_column_width
+[33md54e54f[m Update app to use local folder for images and secure image access
+[33m4e2e7c5[m Initial commit
+[33m54194c0[m Initial commit
